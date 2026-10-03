@@ -1,0 +1,51 @@
+# The GitHub trigger must use chat-service-builder as its service account.
+# This pipeline updates the image and port on the existing Cloud Run service.
+# Apply service.yaml separately when changing runtime configuration.
+steps:
+  # Build the checked-out GitHub source using the repository's Dockerfile.
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --platform=linux/amd64
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID
+      - .
+
+  # Upload before deploying: the images section runs at the end of the build.
+  - id: push
+    waitFor: ['build']
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID
+
+  # Preserve existing secrets, runtime identity, scaling and access settings.
+  - id: deploy
+    waitFor: ['push']
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID
+      - --region=${_REGION}
+      - --project=$PROJECT_ID
+      - --port=8000
+      - --quiet
+
+substitutions:
+  _REGION: asia-south1
+  _REPOSITORY: chat-service-repo
+  _SERVICE: chat-service
+
+# Record the image in the build results; BUILD_ID gives each build its own tag.
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s
