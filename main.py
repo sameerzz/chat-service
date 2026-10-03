@@ -46,3 +46,9 @@ def chat_endpoint(message:ChatRequest):
     response = chat(message.message)
     return {"response": response}
 
+@app.get("/")
+def home():
+    return {
+        "message": "Deployed automatically with Cloud Build!",
+        "version": "2.0"
+    }
