@@ -1,6 +1,5 @@
 # The GitHub trigger must use chat-service-builder as its service account.
-# This pipeline updates the image and port on the existing Cloud Run service.
-# Apply service.yaml separately when changing runtime configuration.
+# Creates a Cloud Deploy release; deploy/ manifests define both environments.
 steps:
   # Re-run tests on the actual main-branch source before building a release.
   - id: unit-tests
@@ -12,9 +11,9 @@ steps:
         pip install --no-cache-dir -r requirements.txt &&
         python -m unittest discover -s tests -v
 
-
   # Build the checked-out GitHub source using the repository's Dockerfile.
   - id: build
+    waitFor: ['unit-tests']
     name: gcr.io/cloud-builders/docker
     args:
       - build
@@ -31,26 +30,25 @@ steps:
       - push
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID
 
-  # Preserve existing secrets, runtime identity, scaling and access settings.
-  - id: deploy
+  # Cloud Deploy owns staging rollout and production approval.
+  - id: create-release
     waitFor: ['push']
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: gcloud
+    entrypoint: bash
     args:
-      - run
-      - services
-      - update
+      - scripts/create-release.sh
+      - $PROJECT_ID
+      - ${_REGION}
+      - ${_REPOSITORY}
       - ${_SERVICE}
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$BUILD_ID
-      - --region=${_REGION}
-      - --project=$PROJECT_ID
-      - --port=8000
-      - --quiet
+      - $BUILD_ID
+      - ${_PIPELINE}
 
 substitutions:
   _REGION: asia-south1
   _REPOSITORY: chat-service-repo
   _SERVICE: chat-service
+  _PIPELINE: book-chat
 
 # Record the image in the build results; BUILD_ID gives each build its own tag.
 images:
