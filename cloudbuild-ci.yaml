@@ -10,7 +10,11 @@ steps:
         pip install --no-cache-dir -r requirements.txt &&
         python -m unittest discover -s tests -v
 
+  - id: docker-build-check
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '--platform=linux/amd64', '-t', 'chat-pr-check:$BUILD_ID', '.']
+
 options:
   logging: CLOUD_LOGGING_ONLY
 
-timeout: 600s
+timeout: 1200s

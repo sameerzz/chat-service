@@ -1,0 +1,13 @@
+apiVersion: skaffold/v4beta7
+kind: Config
+metadata:
+  name: book-chat
+deploy:
+  cloudrun: {}
+profiles:
+  - name: staging
+    manifests:
+      rawYaml: [deploy/staging-service.yaml]
+  - name: production
+    manifests:
+      rawYaml: [deploy/production-service.yaml]
